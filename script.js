@@ -25,15 +25,38 @@ var konkani  = "゠アイウエオカキクケコサシスセソタチツテト�
 var characters = konkani.split("");
 var font_size = 14;
 var columns = c.width/font_size;    // number of columns for the rain
-var gradient = ctx.createLinearGradient(0,10, 0,200);
+
 // an array of drops - one per column
 var drops = [];
-// x below is the x coordinate
-// 1 = y-coordinate of the drop (same for every drop initially)
 for (var x = 0; x < columns; x++)
     drops[x] = 1;
 
-// drawing the characters
+// Trail data structure
+var trails = [];
+var trailFadeSpeed = 0.2; // Faster than drops
+
+// Mouse position and movement
+var mouseMoving = false;
+var lastMouseTime = Date.now();
+var mouseX = 0, mouseY = 0;
+
+// Listen for mouse movement
+c.addEventListener('mousemove', function(e) {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    mouseMoving = true;
+    lastMouseTime = Date.now();
+    // Generate several trail points around the cursor
+    for (let i = 0; i < 8; i++) {
+        let angle = (Math.PI * 2) * (i / 8);
+        let radius = font_size * 2;
+        let x = mouseX + Math.cos(angle) * radius;
+        let y = mouseY + Math.sin(angle) * radius;
+        let char = characters[Math.floor(Math.random() * characters.length)];
+        trails.push({x, y, char, alpha: 1.0});
+    }
+});
+
 function draw() {
     // Get the BG color based on the current time i.e. rgb(hh, mm, ss)
     // translucent BG to show trail
@@ -41,7 +64,6 @@ function draw() {
     ctx.fillStyle = "rgba(0,0,0, 0.05)";
     ctx.fillRect(0, 0, c.width, c.height);
 
-    ctx.fillStyle = "#BBB"; // grey text
     ctx.font = font_size + "px arial";
 
     // looping over drops
@@ -52,8 +74,8 @@ function draw() {
         ctx.fillRect(i * font_size, drops[i] * font_size,font_size,font_size);
         // a random chinese character to print
         var text = characters[Math.floor(Math.random() * characters.length)];
-        // x = i * font_size, y = value of drops[i] * font_size
 
+        // Rainbow color logic
         if (root.rainbow) {
           hue += (hueFw) ? 0.01 : -0.01;
           var rr = Math.floor(127 * Math.sin(root.rainbowSpeed * hue + 0) + 128);
@@ -65,17 +87,31 @@ function draw() {
         }
 
         ctx.fillText(text, i * font_size, drops[i] * font_size);
-        // Incrementing Y coordinate
         drops[i]++;
-        // sending the drop back to the top randomly after it has crossed the screen
-        // adding randomness to the reset to make the drops scattered on the Y axis
-       if (drops[i] * font_size > c.height && Math.random() > 0.975)
-			      drops[i] = 0;
+        if (drops[i] * font_size > c.height && Math.random() > 0.975)
+            drops[i] = 0;
     }
+
+    // Fade out trail faster
+    for (let i = trails.length - 1; i >= 0; i--) {
+        let t = trails[i];
+        ctx.globalAlpha = t.alpha;
+        ctx.font = font_size + "px arial";
+        ctx.fillStyle = "#BBB";
+        ctx.fillText(t.char, t.x, t.y);
+        t.alpha -= trailFadeSpeed;
+        if (t.alpha <= 0) {
+            trails.splice(i, 1);
+        }
+    }
+    ctx.globalAlpha = 1.0; // reset alpha
+
+    // Remove trail points if mouse hasn't moved for 100ms
+    if (Date.now() - lastMouseTime > 100) mouseMoving = false;
+    if (!mouseMoving) trails = [];
 }
 
 setInterval(draw, root.matrixspeed);
-
 
 function livelyPropertyListener(name, val)
 {
@@ -101,3 +137,12 @@ function hexToRgb(hex) {
   } : null;
 }
 
+// Make sure canvas resizes correctly on window resize
+window.addEventListener('resize', function() {
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+    columns = c.width / font_size;
+    drops = [];
+    for (var x = 0; x < columns; x++)
+        drops[x] = 1;
+});
